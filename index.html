@@ -111,6 +111,42 @@
         .cloud { position: absolute; background: white; border-radius: 50%; opacity: 0.5; animation: move linear infinite; filter: blur(2px); }
         .boom { font-size: 100px; position: absolute; z-index: 100; animation: boom-anim 0.6s ease-out forwards; }
         @keyframes boom-anim { 0% { transform: scale(0) rotate(0); opacity: 1; } 50% { transform: scale(1.5) rotate(20deg); opacity: 1; } 100% { transform: scale(2.5) rotate(-20deg); opacity: 0; } }
+        /* Стили обновления: Кейсы и Коллекция */
+.nav-bar { display: grid; grid-template-columns: repeat(4, 1fr) !important; } /* Расширяем бар на 4 кнопки */
+
+.case-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; }
+.case-item { 
+    background: #1c202b; border-radius: 18px; padding: 20px; text-align: center; 
+    border: 1px solid #2d3446; transition: 0.3s;
+}
+.case-item:active { transform: scale(0.95); }
+.case-icon { font-size: 40px; margin-bottom: 10px; display: block; filter: drop-shadow(0 0 10px rgba(255,215,0,0.4)); }
+.case-name { color: white; font-weight: bold; font-size: 14px; }
+.case-cost { color: #ffd700; font-size: 14px; margin-top: 5px; }
+
+/* Анимация рулетки */
+#case-modal {
+    position: fixed; top:0; left:0; width:100%; height:100%; 
+    background: rgba(0,0,0,0.95); z-index: 10000; display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+}
+.roulette-box {
+    width: 320px; height: 120px; border: 2px solid #ffd700; 
+    overflow: hidden; position: relative; border-radius: 12px; background: #0f1117;
+}
+.roulette-center-line {
+    position: absolute; left: 50%; top: 0; width: 2px; height: 100%;
+    background: #ff3b3b; z-index: 5; transform: translateX(-50%); shadow: 0 0 10px red;
+}
+.strip {
+    display: flex; position: absolute; left: 0; align-items: center;
+    height: 100%; transition: all 4s cubic-bezier(0.1, 0, 0, 1);
+}
+.strip-item {
+    min-width: 100px; height: 100px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; color: white; font-size: 12px;
+}
+.nft-img { width: 50px; height: 50px; border-radius: 8px; border: 1px solid gold; }
     </style>
 </head>
 <body>
@@ -206,6 +242,10 @@
         <button class="nav-item" onclick="tg.showAlert('Магазин (Скоро)')"><span class="nav-icon">🛒</span>Наборы</button>
         <button class="nav-item" onclick="showFriends()"><span class="nav-icon">👥</span>Друзья</button>
         <button class="nav-item" onclick="showGiveaway()"><span class="nav-icon">🏆</span>Розыгрыш</button>
+        <div class="nav-item" onclick="showScreen('cases-screen')">
+    <span>📦</span>
+    <div>Наборы</div>
+            </div>
     </nav>
 
     <div id="league-modal" class="modal">
@@ -253,6 +293,42 @@
         </div>
         <button id="btn-get-ticket" class="btn-ticket" onclick="claimTicket()" disabled>КУПИТЬ БИЛЕТ (100 ⭐)</button>
         <button class="btn-close-modal" style="background:none; color:#94a3b8" onclick="document.getElementById('giveaway-modal').style.display='none'">ЗАКРЫТЬ</button>
+        <div id="cases-screen" class="screen" style="display:none;">
+    <h3 style="color:white; padding: 20px 0 0 20px;">Обычные наборы</h3>
+    <div class="case-grid">
+        <div class="case-item" onclick="tryOpenCase('bronze')">
+            <span class="case-icon">🤎</span>
+            <div class="case-name">Бронзовый</div>
+            <div class="case-cost">25 ⭐</div>
+        </div>
+        <div class="case-item" onclick="tryOpenCase('silver')">
+            <span class="case-icon">🤍</span>
+            <div class="case-name">Серебряный</div>
+            <div class="case-cost">50 ⭐</div>
+        </div>
+        <div class="case-item" onclick="tryOpenCase('gold')">
+            <span class="case-icon">💛</span>
+            <div class="case-name">Золотой</div>
+            <div class="case-cost">100 ⭐</div>
+        </div>
+    </div>
+    <center><button onclick="showScreen('collection-screen')" style="background:none; border: 1px solid #555; color: #888; padding: 10px 20px; border-radius: 10px;">🎒 Моя коллекция</button></center>
+</div>
+
+<div id="collection-screen" class="screen" style="display:none; color:white; padding: 20px;">
+    <h2>Мои NFT Призы</h2>
+    <div id="collection-list" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;"></div>
+    <button onclick="showScreen('cases-screen')" style="margin-top:20px;">Назад</button>
+</div>
+
+<div id="case-modal">
+    <div class="roulette-box">
+        <div class="roulette-center-line"></div>
+        <div id="strip" class="strip"></div>
+    </div>
+    <h2 id="win-text" style="color:white; margin-top:20px;"></h2>
+    <button id="claim-btn" onclick="closeCase()" style="display:none; padding:10px 40px; background:gold; border:none; border-radius:10px; font-weight:bold;">ЗАБРАТЬ ПРИЗ</button>
+</div>
     </div>
 
     <audio id="snd_pop" src="https://www.soundjay.com/buttons/sounds/button-37a.mp3"></audio>
@@ -279,6 +355,88 @@
             } else {
                 btnFree.disabled = false;
                 btnFree.innerText = `🚀 БЕСПЛАТНЫЙ ПОЛЕТ`;
+                const caseSettings = {
+    bronze: { price: 25, items: [
+        {n:"5 ⭐", t:"stars", v:5, c:70, i:"⭐"}, {n:"10 ⭐", t:"stars", v:10, c:25, i:"⭐"},
+        {n:"50 ⭐", t:"stars", v:50, c:5, i:"💰"}, {n:"Розочка", t:"scam", c:0, i:"🌹"}, {n:"Буст", t:"scam", c:0, i:"⚡"}
+    ]},
+    silver: { price: 50, items: [
+        {n:"NFT 'Медная Сова'", t:"nft", c:60, i:"🦉"}, {n:"30 ⭐", t:"stars", v:30, c:30, i:"⭐"},
+        {n:"100 ⭐", t:"stars", v:100, c:10, i:"💰"}, {n:"Gold Ticket", t:"scam", c:0, i:"🎫"}, {n:"Premium", t:"scam", c:0, i:"💎"}
+    ]},
+    gold: { price: 100, items: [
+        {n:"50 ⭐", t:"stars", v:50, c:50, i:"⭐"}, {n:"100 ⭐", t:"stars", v:100, c:30, i:"💰"},
+        {n:"500 ⭐", t:"stars", v:500, c:10, i:"👑"}, {n:"NFT 'Кибер-Орел'", t:"nft", c:10, i:"🦅"}, {n:"NFT 'Алмаз'", t:"scam", c:0, i:"💎"}
+    ]}
+};
+
+let userInventory = []; // Сюда подгрузятся данные с сервера
+
+async function tryOpenCase(tier) {
+    const config = caseSettings[tier];
+    if (balance < config.price) return alert("Недостаточно звезд!");
+
+    balance -= config.price;
+    updateUI(); // Обновите баланс в интерфейсе
+
+    // Фильтруем только те, что выпадают (>0%)
+    const possible = config.items.filter(item => item.c > 0);
+    const win = possible[Math.floor(Math.random() * possible.length)];
+
+    startAnimation(win, config.items);
+}
+
+function startAnimation(win, allItems) {
+    const modal = document.getElementById('case-modal');
+    const strip = document.getElementById('strip');
+    modal.style.display = 'flex';
+    strip.style.transition = 'none';
+    strip.style.left = '0px';
+    strip.innerHTML = '';
+
+    // Генерируем ленту из 40 предметов
+    for(let i=0; i<45; i++) {
+        const item = allItems[Math.floor(Math.random() * allItems.length)];
+        const target = i === 40 ? win : item;
+        strip.innerHTML += `<div class="strip-item"><span style="font-size:30px">${target.i}</span><br>${target.n}</div>`;
+    }
+
+    setTimeout(() => {
+        strip.style.transition = 'all 4s cubic-bezier(0.1, 0, 0, 1)';
+        strip.style.left = '-3900px'; // Прокрутка к 40-му элементу
+    }, 50);
+
+    setTimeout(async () => {
+        document.getElementById('win-text').innerText = "Выпало: " + win.n;
+        document.getElementById('claim-btn').style.display = 'block';
+        
+        if(win.t === 'stars') balance += win.v;
+        if(win.t === 'nft') userInventory.push(win.n);
+        
+        // СИНХРОНИЗАЦИЯ С ПИТОНОМ
+        await fetch('/update_data', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: tg.initDataUnsafe.user.id,
+                balance: balance,
+                inventory: userInventory
+            })
+        });
+        updateUI();
+        updateCollectionUI();
+    }, 4500);
+}
+
+function updateCollectionUI() {
+    const list = document.getElementById('collection-list');
+    list.innerHTML = userInventory.map(name => `<div class="case-item">🖼️<br>${name}</div>`).join('');
+}
+
+function closeCase() {
+    document.getElementById('case-modal').style.display = 'none';
+    document.getElementById('claim-btn').style.display = 'none';
+    document.getElementById('win-text').innerText = '';
             }
 
             const payLast = localStorage.getItem('pay_cooldown') || 0;
