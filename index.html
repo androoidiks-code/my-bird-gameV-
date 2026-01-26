@@ -90,6 +90,13 @@
         .btn-ticket:disabled { opacity: 0.3; cursor: not-allowed; }
         #ticket-info { background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; padding: 10px; border-radius: 12px; margin-bottom: 15px; display: none; }
 
+        /* Daily Rewards Styles */
+        .daily-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+        .daily-day { background: rgba(255,255,255,0.05); padding: 8px; border-radius: 10px; font-size: 10px; border: 1px solid #334155; }
+        .daily-day.active { border-color: var(--yellow); background: rgba(252, 211, 77, 0.1); }
+        .daily-day.claimed { opacity: 0.5; border-color: #10b981; }
+        .daily-val { color: var(--yellow); font-weight: bold; display: block; margin-top: 4px; }
+
         .star-fx { position: absolute; font-size: 24px; animation: collect 0.6s ease-out forwards; z-index: 5; }
         @keyframes collect { 0% { opacity: 1; transform: scale(1.5); } 100% { opacity: 0; transform: translate(-180px, -40px) scale(0.5); } }
         .cloud { position: absolute; background: white; border-radius: 50%; opacity: 0.5; animation: move linear infinite; filter: blur(2px); }
@@ -138,13 +145,29 @@
 
     <nav class="nav-bar">
         <button class="nav-item active" onclick="location.reload()"><span class="nav-icon">🎮</span>Игра</button>
-        <button class="nav-item" onclick="tg.showAlert('Магазин (Скоро)')"><span class="nav-icon">🛒</span>Магазин</button>
+        <button class="nav-item" onclick="checkDaily(true)"><span class="nav-icon">🎁</span>Бонус</button>
         <button class="nav-item" onclick="showFriends()"><span class="nav-icon">👥</span>Друзья</button>
         <button class="nav-item" onclick="showGiveaway()"><span class="nav-icon">🏆</span>Розыгрыш</button>
     </nav>
 
+    <div id="daily-modal" class="modal">
+        <h2 class="modal-header">🎁 ЕЖЕДНЕВНЫЙ БОНУС</h2>
+        <p style="font-size: 11px; color: #94a3b8;">Заходи каждый день, чтобы увеличить награду! Если пропустишь 24ч — стрик сбросится.</p>
+        <div class="daily-grid" id="daily-grid">
+            <div class="daily-day" id="d-day-1">День 1<span class="daily-val">25</span></div>
+            <div class="daily-day" id="d-day-2">День 2<span class="daily-val">50</span></div>
+            <div class="daily-day" id="d-day-3">День 3<span class="daily-val">75</span></div>
+            <div class="daily-day" id="d-day-4">День 4<span class="daily-val">100</span></div>
+            <div class="daily-day" id="d-day-5">День 5<span class="daily-val">250</span></div>
+            <div class="daily-day" id="d-day-6">День 6<span class="daily-val">275</span></div>
+            <div class="daily-day" id="d-day-7" style="grid-column: span 2;">День 7<span class="daily-val">300 ⭐</span></div>
+        </div>
+        <button id="btn-claim-daily" class="btn-ticket" style="margin-top:20px;" onclick="claimDaily()">ЗАБРАТЬ НАГРАДУ</button>
+        <button class="btn-close-modal" style="background:none; color:#94a3b8" onclick="document.getElementById('daily-modal').style.display='none'">ЗАКРЫТЬ</button>
+    </div>
+
     <div id="league-modal" class="modal">
-        <h2 class="modal-header">🏆 СИСТЕМА ЛИГ</h2>
+        <h2 class="modal-header">🏆 СИСТЕЕМЫ ЛИГ</h2>
         <div class="league-info-card" style="border-left-color: var(--bronze)">
             <h4 class="league-bronze">Бронзовая <span>0-1000 ⭐</span></h4>
             <p>Начальный уровень. Бонусы отсутствуют.</p>
@@ -203,6 +226,58 @@
         
         let balance = 0, flightWin = 0, isGaming = false, seconds = 0, currentMult = 1.0, alreadyTaken = false, crashPoint = 0;
 
+        // --- DAILY REWARDS LOGIC ---
+        const dailyRewards = [25, 50, 75, 100, 250, 275, 300];
+
+        function checkDaily(manual = false) {
+            const now = Date.now();
+            const lastClaim = parseInt(localStorage.getItem('last_daily_claim') || 0);
+            let streak = parseInt(localStorage.getItem('daily_streak') || 0);
+            
+            const hoursPassed = (now - lastClaim) / (1000 * 60 * 60);
+
+            if (hoursPassed > 48) {
+                streak = 0; // Сброс если пропустил более 2 дней
+                localStorage.setItem('daily_streak', 0);
+            }
+
+            // Рендер сетки
+            for (let i = 1; i <= 7; i++) {
+                const el = document.getElementById(`d-day-${i}`);
+                el.className = 'daily-day';
+                if (i <= streak) el.classList.add('claimed');
+                if (i === streak + 1) el.classList.add('active');
+            }
+
+            const canClaim = hoursPassed >= 24 || lastClaim === 0;
+            document.getElementById('btn-claim-daily').disabled = !canClaim;
+            document.getElementById('btn-claim-daily').innerText = canClaim ? "ЗАБРАТЬ НАГРАДУ" : "ПРИХОДИ ЗАВТРА";
+
+            if (canClaim || manual) {
+                document.getElementById('daily-modal').style.display = 'block';
+            }
+        }
+
+        async function claimDaily() {
+            let streak = parseInt(localStorage.getItem('daily_streak') || 0);
+            const reward = dailyRewards[streak];
+            
+            streak = (streak + 1) > 7 ? 1 : (streak + 1);
+            
+            localStorage.setItem('daily_streak', streak);
+            localStorage.setItem('last_daily_claim', Date.now());
+            
+            balance += reward;
+            updateUI();
+            syncBalance();
+            
+            tg.showAlert(`Вы получили ежедневную награду: ${reward} ⭐!`);
+            document.getElementById('daily-modal').style.display = 'none';
+            tg.HapticFeedback.notificationOccurred('success');
+        }
+
+        // --- ORIGINAL GAME LOGIC ---
+
         function updateCooldowns() {
             const now = Date.now();
             const freeLast = localStorage.getItem('free_cooldown') || 0;
@@ -233,15 +308,6 @@
             });
         }
 
-        function spawnStar() {
-            const s = document.createElement('div');
-            s.className = 'star-fx'; s.innerText = '⭐';
-            s.style.top = document.getElementById('bird-wrap').style.top;
-            s.style.right = '40px';
-            document.getElementById('scene').appendChild(s);
-            setTimeout(() => s.remove(), 600);
-        }
-
         function fly(cost, type) {
             if (cost > balance && type !== 'free') {
                 tg.showAlert(`Нужно ${cost} ⭐, у тебя ${balance}`); return;
@@ -258,7 +324,6 @@
 
         function start(cost, type) {
             isGaming = true; seconds = 0; flightWin = 0; currentMult = 1.0; alreadyTaken = false; 
-            // Фиксируем долет (6-12 сек) заранее
             crashPoint = 6 + Math.random() * 6; 
             
             if (type !== 'free') balance -= cost;
@@ -272,13 +337,10 @@
             document.getElementById('multiplier').style.display = 'block';
             document.getElementById('scene').style.filter = "brightness(1.1)";
 
-            // --- НАЧАЛО ОБНОВЛЕННОГО БЛОКА ---
             window.timer = setInterval(() => {
                 seconds += 0.5;
-                
-                // 1. ФАЗА ПОСЛЕ ЗАБОРА (Визуальный долет)
                 if (alreadyTaken) {
-                    currentMult += 0.35; // Ускоряем икс для азарта
+                    currentMult += 0.35;
                     document.getElementById('multiplier').innerText = `x${currentMult.toFixed(2)}`;
                     document.getElementById('bird-wrap').style.top = (25 + Math.random()*50) + '%';
                     document.getElementById('bird').style.transform = "rotate(15deg)";
@@ -289,26 +351,9 @@
                     return;
                 }
 
-                // 2. ФАЗА ИГРЫ (Алгоритм "Стеклянный потолок")
-                let difficulty = 1.0;
-                
-                if (balance >= 900) {
-                    difficulty = 100.0; // СМЕРТЕЛЬНЫЙ УРОВЕНЬ (краш сразу)
-                } else if (balance > 700) {
-                    difficulty = 8.0;   // Почти невозможно лететь долго
-                } else if (balance > 400) {
-                    difficulty = 2.5;   // Плавное торможение
-                } else {
-                    difficulty = 0.6;   // Помощь новичкам (прикормка)
-                }
-
-                // Шанс краша, который растет каждую секунду и множится на сложность
+                let difficulty = balance >= 900 ? 100.0 : (balance > 700 ? 8.0 : (balance > 400 ? 2.5 : 0.6));
                 let crashChance = (seconds * 0.15) * difficulty;
-
-                // ЖЕСТКИЙ ПРЕДОХРАНИТЕЛЬ (если баланс > 900, шанс краша 100%)
-                if (balance >= 900 || (balance > 850 && currentMult > 1.1)) {
-                    crashChance = 1.0; 
-                }
+                if (balance >= 900 || (balance > 850 && currentMult > 1.1)) crashChance = 1.0; 
 
                 if (Math.random() < crashChance) {
                     clearInterval(window.timer);
@@ -324,23 +369,17 @@
                     document.getElementById('snd_pop').play();
                 }
             }, 500);
-            // --- КОНЕЦ ОБНОВЛЕННОГО БЛОКА ---
         }
         
         function take() {
             if (alreadyTaken) return;
             alreadyTaken = true;
-            
-            // Фиксируем баланс сразу
             balance += flightWin;
             updateUI();
-            
             tg.HapticFeedback.notificationOccurred('success');
             document.getElementById('takeBtn').innerText = "🚀 ПТИЧКА ЛЕТИТ...";
             document.getElementById('takeBtn').disabled = true;
             document.getElementById('takeBtn').style.opacity = "0.6";
-            
-            // Обнуляем секунды, чтобы отсчитать crashPoint (6-12 сек)
             seconds = 0; 
             crashPoint = 6 + Math.random() * 6; 
         }
@@ -348,30 +387,21 @@
         async function end(isManual) {
             isGaming = false;
             const finalWin = alreadyTaken ? flightWin : 0;
-            
             const scene = document.getElementById('scene');
             scene.style.animation = "shake 0.5s cubic-bezier(.36,.07,.19,.97) both";
             scene.style.filter = "brightness(0.7)";
-            
             const b = document.createElement('div');
             b.className = 'boom'; b.innerText = '💥';
             b.style.left = '50px'; b.style.top = document.getElementById('bird-wrap').style.top;
             scene.appendChild(b);
-            
-            const crashSnd = document.getElementById('snd_crash');
-            crashSnd.volume = 1.0;
-            crashSnd.play();
-            
+            document.getElementById('snd_crash').play();
             tg.HapticFeedback.notificationOccurred('error');
             setTimeout(() => { b.remove(); scene.style.animation = ""; }, 600);
-
             addHistory(finalWin, currentMult);
-
             document.getElementById('controls').style.display = 'grid';
             document.getElementById('takeBtn').style.display = 'none';
             document.getElementById('multiplier').style.display = 'none';
             document.getElementById('win').innerText = 0;
-
             updateUI();
             syncBalance();
         }
@@ -381,9 +411,7 @@
             const item = document.createElement('div');
             item.className = `hist-item ${win > 0 ? 'hist-win' : 'hist-crash'}`;
             item.innerHTML = `<span>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span><span>${win > 0 ? '+'+win+' ⭐' : 'КРАШ'}</span><span>x${m.toFixed(2)}</span>`;
-            
             list.prepend(item);
-            
             let h = JSON.parse(localStorage.getItem('bird_history') || '[]');
             h.push({w:win, m:m, t:new Date().toLocaleTimeString()});
             if(h.length > 15) h.shift();
@@ -400,19 +428,15 @@
             } catch (e) {}
         }
 
-        function showLeagues() {
-            document.getElementById('league-modal').style.display = 'block';
-        }
+        function showLeagues() { document.getElementById('league-modal').style.display = 'block'; }
 
         function updateUI() {
             document.getElementById('bal').innerText = balance;
             let prog = Math.min(100, (balance / 1000) * 100);
             document.getElementById('progress-bar').style.width = prog + '%';
             document.getElementById('prog-val').innerText = balance;
-
             const lIcon = document.getElementById('league-icon');
             const lName = document.getElementById('league-name');
-
             if (balance >= 10000) {
                 lIcon.innerText = "💎"; lName.innerText = "Алмазная лига"; lName.className = "league-diamond";
                 document.getElementById('league-container').style.borderColor = "var(--diamond)";
@@ -433,26 +457,18 @@
             const list = document.getElementById('friends-list-content');
             list.innerHTML = "<p style='color:gray; text-align:center;'>Загрузка...</p>";
             modal.style.display = 'block';
-            
             try {
                 const r = await fetch(`${API}/get_user?user_id=${userId}`);
                 const data = await r.json();
                 const friends = data.friend_list || [];
-                
-                list.innerHTML = "";
-                if (friends.length === 0) {
-                    list.innerHTML = "<p style='color:gray; text-align:center; font-size:12px;'>У вас пока нет приглашенных друзей.</p>";
-                } else {
-                    friends.forEach(name => {
-                        const div = document.createElement('div');
-                        div.className = 'friend-item'; div.innerText = "👤 " + name;
-                        list.appendChild(div);
-                    });
-                }
-                if(data.balance !== undefined) {
-                    balance = data.balance; updateUI();
-                }
-            } catch (e) { list.innerHTML = "Ошибка загрузки"; }
+                list.innerHTML = friends.length === 0 ? "<p style='color:gray; text-align:center; font-size:12px;'>Нет друзей.</p>" : "";
+                friends.forEach(name => {
+                    const div = document.createElement('div');
+                    div.className = 'friend-item'; div.innerText = "👤 " + name;
+                    list.appendChild(div);
+                });
+                if(data.balance !== undefined) { balance = data.balance; updateUI(); }
+            } catch (e) { list.innerHTML = "Ошибка"; }
         }
 
         async function showGiveaway() {
@@ -461,20 +477,18 @@
                 const r = await fetch(`${API}/get_user?user_id=${userId}`);
                 const data = await r.json();
                 const refsCount = data.friend_list ? data.friend_list.length : 0;
-                const hasTicket = data.ticket || null;
                 document.getElementById('task-ref').innerText = refsCount >= 10 ? "✅" : `(${refsCount}/10)`;
                 document.getElementById('task-sub').innerText = "✅"; 
                 document.getElementById('btn-get-ticket').disabled = !(refsCount >= 10 && balance >= 100);
-                if (hasTicket) {
+                if (data.ticket) {
                     document.getElementById('ticket-info').style.display = 'block';
-                    document.getElementById('my-ticket').innerText = hasTicket;
+                    document.getElementById('my-ticket').innerText = data.ticket;
                     document.getElementById('btn-get-ticket').style.display = 'none';
                 }
             } catch(e) {}
         }
 
         async function claimTicket() {
-            tg.HapticFeedback.impactOccurred('medium');
             try {
                 const r = await fetch(`${API}/claim_ticket`, {
                     method: 'POST',
@@ -483,10 +497,10 @@
                 });
                 const d = await r.json();
                 if (d.status === 'ok') {
-                    tg.showAlert(`Поздравляем! Ваш билет: ${d.ticket}`);
+                    tg.showAlert(`Билет куплен!`);
                     balance -= 100; updateUI(); showGiveaway();
-                } else { tg.showAlert(d.message || "Ошибка"); }
-            } catch(e) { tg.showAlert("Сервер временно недоступен"); }
+                }
+            } catch(e) {}
         }
 
         function loadAll() {
@@ -497,7 +511,7 @@
                 item.innerHTML = `<span>${x.t}</span><span>${x.w > 0 ? '+'+x.w : 'КРАШ'}</span><span>x${x.m.toFixed(2)}</span>`;
                 document.getElementById('hist-list').appendChild(item);
             });
-            fetch(`${API}/get_user?user_id=${userId}`).then(r => r.json()).then(d => { balance = d.balance || 0; updateUI(); });
+            fetch(`${API}/get_user?user_id=${userId}`).then(r => r.json()).then(d => { balance = d.balance || 0; updateUI(); checkDaily(); });
         }
 
         function createClouds() {
@@ -509,28 +523,19 @@
             }
         }
 
-        const style = document.createElement('style');
-        style.innerHTML = `@keyframes move { from { right: -120px; } to { right: 120%; } }`;
-        document.head.appendChild(style);
+        const trailStyle = document.createElement('style');
+        trailStyle.innerHTML = `@keyframes move { from { right: -120px; } to { right: 120%; } }`;
+        document.head.appendChild(trailStyle);
 
-        createClouds(); loadAll(); setInterval(updateCooldowns, 1000);
         function createTrail() {
             const trail = document.createElement('div');
             trail.innerText = '✨'; 
-            trail.style.position = 'absolute';
-            trail.style.left = '45px';
-            trail.style.top = document.getElementById('bird-wrap').style.top;
-            trail.style.fontSize = '15px';
-            trail.style.opacity = '0.8';
-            trail.style.transition = 'all 0.8s linear';
+            trail.style.cssText = `position:absolute; left:45px; top:${document.getElementById('bird-wrap').style.top}; font-size:15px; opacity:0.8; transition:all 0.8s linear;`;
             document.getElementById('scene').appendChild(trail);
-
-            setTimeout(() => {
-                trail.style.left = '-100px';
-                trail.style.opacity = '0';
-                setTimeout(() => trail.remove(), 800);
-            }, 50);
+            setTimeout(() => { trail.style.left = '-100px'; trail.style.opacity = '0'; setTimeout(() => trail.remove(), 800); }, 50);
         }
+
+        createClouds(); loadAll(); setInterval(updateCooldowns, 1000);
     </script>
 </body>
 </html>
