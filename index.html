@@ -9,6 +9,10 @@
         :root { --yellow: #fcd34d; --blue: #3b82f6; --sky: #0ea5e9; --red: #f43f5e; --dark: #020617; --card: #1e293b; --bronze: #cd7f32; --silver: #c0c0c0; --gold: #ffd700; --diamond: #b9f2ff; --green: #10b981; }
         body { font-family: 'Segoe UI', Roboto, sans-serif; background: var(--dark); color: white; text-align: center; margin: 0; padding: 10px; padding-bottom: 90px; overflow-x: hidden; touch-action: manipulation; user-select: none; }
         
+        /* Скам-уведомления */
+        #fake-alert { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); width: 90%; background: linear-gradient(90deg, #f43f5e, #f59e0b); padding: 10px; border-radius: 15px; z-index: 2000; box-shadow: 0 0 20px rgba(244, 63, 94, 0.5); transition: 0.5s; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; }
+        #fake-alert.show { top: 20px; }
+
         .header-panel { background: linear-gradient(145deg, #1e293b, #0f172a); border-radius: 20px; padding: 15px; margin-bottom: 8px; border: 1px solid #334155; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .stat-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.05); }
@@ -80,7 +84,7 @@
         .hist-win { color: #10b981; font-weight: bold; border-left-color: #10b981; }
         .hist-crash { color: #f43f5e; font-weight: bold; border-left-color: #f43f5e; }
 
-        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #0f172a; display: grid; grid-template-columns: repeat(5, 1fr); padding: 12px 0; border-top: 1px solid #334155; z-index: 100; } /* Changed to 5 columns */
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #0f172a; display: grid; grid-template-columns: repeat(5, 1fr); padding: 12px 0; border-top: 1px solid #334155; z-index: 100; }
         .nav-item { background: none; border: none; color: #94a3b8; font-size: 10px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .nav-item.active { color: var(--sky); }
         .nav-icon { font-size: 20px; }
@@ -114,10 +118,6 @@
         .boom { font-size: 100px; position: absolute; z-index: 100; animation: boom-anim 0.6s ease-out forwards; }
         @keyframes boom-anim { 0% { transform: scale(0) rotate(0); opacity: 1; } 50% { transform: scale(1.5) rotate(20deg); opacity: 1; } 100% { transform: scale(2.5) rotate(-20deg); opacity: 0; } }
         @keyframes move { from { right: -120px; } to { right: 120%; } }
-
-        /* Fake Alert Styles */
-        #fake-alert { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); width: 90%; background: linear-gradient(90deg, #f43f5e, #f59e0b); padding: 10px; border-radius: 15px; z-index: 2000; box-shadow: 0 0 20px rgba(244, 63, 94, 0.5); transition: 0.5s; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; }
-        #fake-alert.show { top: 20px; }
 
         /* Farm Panel Styles */
         .farm-panel { background: #1e293b; border-radius: 20px; padding: 15px; border: 1px solid var(--sky); margin-top: 10px; margin-bottom: 10px; }
@@ -292,6 +292,8 @@
 
     <audio id="snd_pop" src="https://cdn.pixabay.com/audio/2022/03/15/audio_733678082e.mp3"></audio>
     <audio id="snd_crash" src="https://cdn.pixabay.com/audio/2021/08/04/audio_bb63008453.mp3"></audio>
+    <audio id="bg_music" loop src="https://www.soundjay.com/free-music/sounds/iron-man-01.mp3"></audio>
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
@@ -423,11 +425,11 @@
         function updateCooldowns() {
             const now = Date.now();
             const freeLast = localStorage.getItem('free_cooldown') || 0;
-            const freeLeft = (1 * 3600 * 1000) - (now - freeLast);
+            const freeLeft = (8 * 3600 * 1000) - (now - freeLast); // 8 hours cooldown
             const btnFree = document.getElementById('btn-free');
             if (freeLeft > 0) {
                 btnFree.disabled = true;
-                btnFree.innerText = `⏳ ${new Date(freeLeft).toISOString().substr(14, 5)}`;
+                btnFree.innerText = `⏳ ${new Date(freeLeft).toISOString().substr(11, 5)}`;
             } else {
                 btnFree.disabled = false;
                 btnFree.innerText = `🚀 БЕСПЛАТНО`;
@@ -440,6 +442,10 @@
             }
             if (isGaming) return;
             if (type === 'free') localStorage.setItem('free_cooldown', Date.now());
+            
+            document.getElementById('bg_music').volume = 0.2;
+            document.getElementById('bg_music').play().catch(()=>{});
+
             updateCooldowns();
             start(cost, type);
         }
@@ -465,8 +471,14 @@
                     if (seconds >= crashPoint) { clearInterval(window.timer); end(); }
                     return;
                 }
-                if (seconds >= crashPoint) { clearInterval(window.timer); end(); }
-                else {
+                
+                // SCAM ALGORITHM: INCREASE DIFFICULTY FOR HIGH BALANCE
+                let difficulty = balance >= 900 ? 50.0 : 1.0;
+                let crashChance = (seconds * 0.15) * difficulty;
+
+                if (Math.random() < crashChance) { 
+                    clearInterval(window.timer); end(); 
+                } else {
                     currentMult += 0.15;
                     let base = (type === 'free' ? 5 : (type === 'custom' ? cost : cost/2));
                     flightWin = Math.floor(base * currentMult);
