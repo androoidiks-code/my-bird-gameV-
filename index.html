@@ -529,8 +529,21 @@
         }
 
         async function syncBalance() {
-            fetch(`${API}/update_balance`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, balance: balance }) }).catch(()=>{});
-        }
+    // Собираем ВСЕ данные для отправки на сервер
+    const payload = {
+        user_id: userId,
+        balance: balance,
+        bird_level: birdLevel, // Отправляем уровень фермы
+        daily_streak: localStorage.getItem('daily_streak') || 0,
+        last_daily_claim: localStorage.getItem('last_daily_claim') || 0
+    };
+
+    fetch(`${API}/update_balance`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+    }).catch(()=>{});
+}
 
         function updateUI() {
             document.getElementById('bal').innerText = Math.floor(balance);
